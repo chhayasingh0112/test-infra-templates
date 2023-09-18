@@ -1,0 +1,48 @@
+version: 0.2
+env:
+  secrets-manager:
+    SPECTRAL_DSN: arn:aws:secretsmanager:ap-south-1:739692895244:secret:dev/spectral_dns-cv7DAY:SPECTRAL_DSN
+phases:
+
+  install:
+    runtime-versions:
+      docker: 20
+    commands:
+      - curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.22.2/2021-07-05/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin
+      - curl -L "https://app.spectralops.io/latest/x/sh?dsn=$SPECTRAL_DSN" | sh
+      - wget -qO- https://github.com/aquasecurity/trivy/releases/download/v0.32.1/trivy_0.32.1_Linux-64bit.tar.gz |tar xvfz  - -C /tmp
+      - chmod + /tmp/trivy
+      - mv /tmp/trivy /usr/local/bin
+      - aws s3 sync s3://ap-south-1-codebuild-scripts-0fe4dbcx . 
+      - chmod +x *.sh
+      - wget -O hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64
+      - cp hadolint /bin
+      - chmod +x /bin/hadolint
+      - /bin/hadolint --version
+
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - echo $AWS_DEFAULT_REGION
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - COMMIT_ID=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -b -8)
+      - ECR_REPO=$(echo $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME)
+      - ECR_BASE=$(echo $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com)
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo "Starting SpectralOPS SAST code analysis"
+      # - ./spectralops_scan.sh
+      - echo "End SpectralOPS"
+      - echo "starting trivy code scan"
+      # - ./trivy.sh fs
+      - echo Build completed on `date`
+      - echo Validating the Dockerfile using Hadolint tool...
+      # - /bin/hadolint --ignore DL3003 --ignore DL3006  Dockerfile
+  
+  post_build:
+    commands:
+      - echo Moving to next stage

@@ -1,0 +1,19 @@
+version: 0.2
+env:
+  git-credential-helper: yes
+phases:
+  build:
+    commands:
+      - git config --global --unset-all credential.helper
+      - git config --global credential.helper '!aws codecommit credential-helper $@'
+      - git config --global credential.UseHttpPath true
+      - git clone --mirror https://git-codecommit.ap-south-1.amazonaws.com/v1/repos/$SERVICE_NAME LocalRepository
+      - cd LocalRepository
+      - git remote set-url --push origin https://git-codecommit.ap-southeast-1.amazonaws.com/v1/repos/$SERVICE_NAME
+      - git config --global credential.helper '!aws codecommit credential-helper $@'
+      - git config --global credential.UseHttpPath true
+      - git fetch -p origin
+      - git push --mirror
+  post_build:
+    commands:
+      - echo Build completed

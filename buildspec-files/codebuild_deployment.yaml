@@ -1,0 +1,36 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - yum install python
+      - yum install -y nodejs
+  pre_build:
+    commands:
+      - npm install -g aws-cdk
+      - aws sts assume-role --role-arn "arn:aws:iam::115816689702:role/devtool-ap-south-1-s3-access-policy" --role-session-name "cdk-object-upload" > assume-role-output.json
+      - export AWS_ACCESS_KEY_ID=$(jq -r '.Credentials.AccessKeyId' assume-role-output.json)
+      - export AWS_SECRET_ACCESS_KEY=$(jq -r '.Credentials.SecretAccessKey' assume-role-output.json)
+      - export AWS_SESSION_TOKEN=$(jq -r '.Credentials.SessionToken' assume-role-output.json)
+      # - export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s" $(aws sts assume-role --role-arn arn:aws:iam::616763652002:role/devtool-ap-south-1-s3-access-policy --role-session-name cdk-object-upload --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" --output text))
+
+      # - aws sts assume-role --role-arn arn:aws:iam::115816689702:role/devtool-ap-south-1-s3-access-policy --role-session-name cdk-object-upload
+      - aws sts get-caller-identity
+      - cd swagger-file/
+      - aws s3 cp . s3://uat-1-swagger-files-bucket/ --recursive --exclude "*" --include "*.json"
+      - cd ..
+      - echo installing requirements.txt
+      - pip install -r requirements.txt
+      - unset AWS_ACCESS_KEY_ID
+      - unset AWS_SESSION_TOKEN
+      - unset AWS_SECRET_ACCESS_KEY
+      - aws sts get-caller-identity
+  build:
+    commands:
+      - echo Building cdk
+      - cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION
+      - cdk synth
+      - python3 key_python.py
+      ## - cdk deploy --all --require-approval never
+  post_build:
+    commands:
+      - echo Layer test Build completed on `date`
